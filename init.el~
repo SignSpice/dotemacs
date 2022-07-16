@@ -1,0 +1,31 @@
+(defun cider-eval-clipboard-handler ()
+  (nrepl-make-response-handler
+   (current-buffer)
+   (lambda (buffer value)
+     (with-current-buffer buffer
+       (with-temp-buffer
+         (insert value)
+         (clipboard-kill-region (point-min) (point-max)))))
+   (lambda (_buffer out)
+     (cider-emit-interactive-eval-output out))
+   (lambda (_buffer err)
+     (cider-emit-interactive-eval-err-output err))
+   '()))
+
+(defun cider-eval-last-sexpr-and-copy-to-clipboard ()
+  (interactive)
+  (cider-interactive-eval nil
+                         (cider-eval-clipboard-handler)
+                         (cider-last-sexp 'bounds)
+                         (cider--nrepl-pr-request-map)))
+
+(defun jet-pretty ()
+  (interactive)
+  (shell-command-on-region
+   (region-beginning)
+   (region-end)
+   "jet --pretty --edn-reader-opts '{:default tagged-literal}'"
+   (current-buffer)
+   t
+   "*jet error buffer*"
+   t))
