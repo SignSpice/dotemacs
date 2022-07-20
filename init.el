@@ -10,7 +10,7 @@
 
 ;; Install the Straight package manager
 
-(defvar bootstrap-version)
+(defvar bootstrap-version) 
 
 (let ((install-url "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el")
       (bootstrap-file (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
@@ -36,11 +36,11 @@
 ;; tested with.
 
 (use-package corgi-packages
-    :straight (corgi-packages
-               :type git
-               ;; :local-repo "/home/Users/ox/projects/corgi-packages"
-               :host github
-               :repo "lambdaisland/corgi-packages"))
+  :straight (corgi-packages
+             :type git
+             :host github
+             :repo "corgi-emacs/corgi-packages"
+             :branch "ox/separate-completion-ui"))
 
 (add-to-list #'straight-recipe-repositories 'corgi-packages)
 
@@ -57,9 +57,7 @@
   (use-package corgi-defaults)
 
   ;; UI configuration for that Corgi-feel. This sets up a bunch of packages like
-  ;; Evil, Smartparens, Ivy (minibuffer completion), Swiper (fuzzy search),
-  ;; Projectile (project-aware commands), Aggressive indent, Company
-  ;; (completion).
+  ;; Evil, Smartparens, Projectile (project-aware commands) and Aggressive indent.
   (use-package corgi-editor)
 
   ;; The few custom commands that we ship with. This includes a few things we
@@ -73,9 +71,10 @@
   ;; to.
   ;; Also contains `corgi/cider-pprint-eval-register', bound to `,,', see
   ;; `set-register' calls below.
-  (use-package corgi-clojure
-    :config
-    (corgi/enable-cider-connection-indicator))
+  (use-package corgi-clojure)
+
+  (with-eval-after-load 'corgi-clojure (corgi/enable-cider-connection-indicator))
+  
 
   ;; Emacs Lisp config, mainly to have a development experience that feels
   ;; similar to using CIDER and Clojure. (show results in overlay, threading
@@ -99,65 +98,26 @@
     :config 
     (corkey/load-and-watch)
     ;; Automatically pick up keybinding changes
-    (corkey-mode 1))
-  )
+    (corkey-mode 1)))
 
 (setq custom-file (concat user-emacs-directory "custom.el"))
 (load custom-file 'noerror)
 
-(setq inhibit-startup-message t)
-
-(scroll-bar-mode -1)        ; Disable visible scrollbar
-(tool-bar-mode -1)          ; Disable the toolbar
-(tooltip-mode -1)           ; Disable tooltips
-(set-fringe-mode 10)        ; Give some breathing room
-
-(menu-bar-mode -1)            ; Disable the menu bar
-
-;; Set up the visible bell
-(setq visible-bell t)
-
-(column-number-mode)
-;; disable line numbers completely
-(global-display-line-numbers-mode 0)
-
-;; Disable line numbers for some modes
-(dolist (mode '(org-mode-hook
-                term-mode-hook
-                shell-mode-hook
-                eshell-mode-hook))
-  (add-hook mode (lambda () (display-line-numbers-mode 0))))
-
-(set-face-attribute 'default nil :font "Iosevka" :height efs/default-font-size)
-
-;; Set the fixed pitch face
-(set-face-attribute 'fixed-pitch nil :font "Iosevka" :height efs/default-font-size)
-
-;; Set the variable pitch face
-;; (set-face-attribute 'variable-pitch nil :font "Times New Roman" :height efs/default-font-size :weight 'regular)
-(set-face-attribute 'variable-pitch nil :font "Iosevka" :height efs/default-font-size :weight 'regular)
-
 ;; Make ESC quit prompts
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
-(use-package general
+(use-package tree-sitter-langs
+  :straight (tree-sitter-langs
+             :host github :type git
+             :repo "emacs-tree-sitter/tree-sitter-langs")
   :config
-  (general-create-definer rune/leader-keys
-    :keymaps '(normal insert visual emacs)
-    :prefix "SPC"
-    :global-prefix "C-SPC")
+  (tree-sitter-load 'org)
+  (tree-sitter-require 'org)
+  (add-to-list 'tree-sitter-major-mode-language-alist '(org-mode . org))
+  (global-tree-sitter-mode))
 
-  (rune/leader-keys
-    "t"  '(:ignore t :which-key "toggles")
-    "tt" '(counsel-load-theme :which-key "choose theme")))
-
-(use-package symex
-  :straight '(symex
-              :type git
-              :host github
-              :repo "polaris64/symex.el"
-              :branch "feature/ts-transformations")
-  :config
+(use-package lispy)
+(defun init-user-symex-conf ()
   (setq lispy-avy-keys (nconc (number-sequence ?a ?x)
                               (number-sequence ?A ?Z)
                               (number-sequence ?1 ?9)
@@ -200,7 +160,54 @@
           ("M-p" . signspice-steal-from-ace)))
   (symex-initialize)
   (setq evil-symex-state-cursor '("#884444" box))
-  (setq evil-normal-state-cursor 'hollow-rectangle))
+  (setq evil-normal-state-cursor 'hollow-rectangle)
+
+  (defun load-symex-branch ()
+    "switch active symex branch"
+    (interactive)
+    (save-excursion
+      (let* ((symex-repo-buf (find-file "~/projects/symex.el/.projectile")))
+        (with-current-buffer symex-repo-buf
+          (magit-branch-checkout (car (completing-read-multiple "select branch: " '("master" "symex-ts-integration"))))))
+      (funcall-interactively #'straight-normalize-package (require 'symex))
+      (funcall-interactively #'straight-rebuild-package "symex")
+      (let* ((symex-features '(symex-transformations
+                               symex-transformations-lisp
+                               symex-transformations-ts)))
+        (dolist (symex-feature symex-features)
+          (when (member symex-feature features)
+            (unload-feature symex-feature t))))
+      ;; trick require to reload symex. (before, I had unloaded all these;
+      ;; but somehow one of them unloads a bunch of other features not in the list. not sure why.)
+      (setf features (cl-remove-if (lambda (feature) (string-prefix-p "symex" (cl-prin1-to-string feature))) features))
+      (require 'symex))))
+
+;; (use-package symex
+;;   :straight (symex-main
+;;              :type git
+;;              :host github
+;;              :repo "countvajhula/symex.el")
+;;   :config
+;;   (init-user-symex-conf))
+
+(use-package symex
+  :straight (symex
+             :type git
+             :host github
+             :repo "SignSpice/symex.el"
+             :local-repo "~/projects/symex.el")
+  :config 
+  (init-user-symex-conf))
+
+(use-package combobulate
+  :straight '(combobulate
+              :host github
+              :type git
+              :repo "mickeynp/combobulate")
+  ;; Ensure `combobulate-mode` is activated when you launch a mode it supports
+  :hook ((python-mode . combobulate-mode)
+         (js-mode . combobulate-mode)
+         (typescript-mode . combobulate-mode)))
 
 (use-package evil
   :init
@@ -247,6 +254,44 @@
     "]" nil
     (kbd "<tab>") 'evil-jump-item))
 
+(setq inhibit-startup-message t)
+
+(scroll-bar-mode -1)        ; Disable visible scrollbar
+(tool-bar-mode -1)          ; Disable the toolbar
+(tooltip-mode -1)           ; Disable tooltips
+(set-fringe-mode 10)        ; Give some breathing room
+
+(menu-bar-mode -1)            ; Disable the menu bar
+
+;; Set up the visible bell
+(setq visible-bell t)
+
+(column-number-mode)
+;; disable line numbers completely
+(global-display-line-numbers-mode 0)
+
+;; Disable line numbers for some modes
+(dolist (mode '(org-mode-hook
+                term-mode-hook
+                shell-mode-hook
+                eshell-mode-hook))
+  (add-hook mode (lambda () (display-line-numbers-mode 0))))
+
+(use-package bufler
+:straight '(bufler
+:type git
+:host github
+:repo "alphapapa/bufler.el"))
+
+(set-face-attribute 'default nil :font "Iosevka" :height efs/default-font-size)
+
+;; Set the fixed pitch face
+(set-face-attribute 'fixed-pitch nil :font "Iosevka" :height efs/default-font-size)
+
+;; Set the variable pitch face
+;; (set-face-attribute 'variable-pitch nil :font "Times New Roman" :height efs/default-font-size :weight 'regular)
+(set-face-attribute 'variable-pitch nil :font "Iosevka" :height efs/default-font-size :weight 'regular)
+
 (use-package command-log-mode)
 
 (use-package doom-themes
@@ -266,7 +311,7 @@
   :init (which-key-mode)
   :diminish which-key-mode
   :config
-  (setq which-key-idle-delay 1))
+  (setq which-key-idle-delay .1))
 
 (use-package vertico
   :init
@@ -454,16 +499,8 @@
   ([remap describe-variable] . counsel-describe-variable)
   ([remap describe-key] . helpful-key))
 
-(use-package hydra)
-
-(defhydra hydra-text-scale (:timeout 4)
-  "scale text"
-  ("j" text-scale-increase "in")
-  ("k" text-scale-decrease "out")
-  ("f" nil "finished" :exit t))
-
-(rune/leader-keys
-  "ts" '(hydra-text-scale/body :which-key "scale text"))
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
 
 (defun efs/org-font-setup ()
   ;; Replace list hyphen with dot
@@ -506,116 +543,115 @@
   (setq org-log-done 'time)
   (setq org-log-into-drawer t)
 
-  (setq org-agenda-files
-        '("~/Projects/Code/emacs-from-scratch/OrgFiles/Tasks.org"
-          "~/Projects/Code/emacs-from-scratch/OrgFiles/Habits.org"
-          "~/Projects/Code/emacs-from-scratch/OrgFiles/Birthdays.org"))
+  (setq org-agenda-files 
+        '("~/org/personal/todo.org"
+          "~/org/personal/inbox.org"))
 
   (require 'org-habit)
   (add-to-list 'org-modules 'org-habit)
   (setq org-habit-graph-column 60)
 
   (setq org-todo-keywords
-    '((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d!)")
-      (sequence "BACKLOG(b)" "PLAN(p)" "READY(r)" "ACTIVE(a)" "REVIEW(v)" "WAIT(w@/!)" "HOLD(h)" "|" "COMPLETED(c)" "CANC(k@)")))
+        '((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d!)")
+          (sequence "BACKLOG(b)" "PLAN(p)" "READY(r)" "ACTIVE(a)" "REVIEW(v)" "WAIT(w@/!)" "HOLD(h)" "|" "COMPLETED(c)" "CANC(k@)")))
 
   (setq org-refile-targets
-    '(("Archive.org" :maxlevel . 1)
-      ("Tasks.org" :maxlevel . 1)))
+        '(("Archive.org" :maxlevel . 1)
+          ("Tasks.org" :maxlevel . 1)))
 
   ;; Save Org buffers after refiling!
   (advice-add 'org-refile :after 'org-save-all-org-buffers)
 
   (setq org-tag-alist
-    '((:startgroup)
-       ; Put mutually exclusive tags here
-       (:endgroup)
-       ("@errand" . ?E)
-       ("@home" . ?H)
-       ("@work" . ?W)
-       ("agenda" . ?a)
-       ("planning" . ?p)
-       ("publish" . ?P)
-       ("batch" . ?b)
-       ("note" . ?n)
-       ("idea" . ?i)))
+        '((:startgroup)
+                                        ; Put mutually exclusive tags here
+          (:endgroup)
+          ("@errand" . ?E)
+          ("@home" . ?H)
+          ("@work" . ?W)
+          ("agenda" . ?a)
+          ("planning" . ?p)
+          ("publish" . ?P)
+          ("batch" . ?b)
+          ("note" . ?n)
+          ("idea" . ?i)))
 
   ;; Configure custom agenda views
   (setq org-agenda-custom-commands
-   '(("d" "Dashboard"
-     ((agenda "" ((org-deadline-warning-days 7)))
-      (todo "NEXT"
-        ((org-agenda-overriding-header "Next Tasks")))
-      (tags-todo "agenda/ACTIVE" ((org-agenda-overriding-header "Active Projects")))))
+        '(("d" "Dashboard"
+           ((agenda "" ((org-deadline-warning-days 7)))
+            (todo "NEXT"
+                  ((org-agenda-overriding-header "Next Tasks")))
+            (tags-todo "agenda/ACTIVE" ((org-agenda-overriding-header "Active Projects")))))
 
-    ("n" "Next Tasks"
-     ((todo "NEXT"
-        ((org-agenda-overriding-header "Next Tasks")))))
+          ("n" "Next Tasks"
+           ((todo "NEXT"
+                  ((org-agenda-overriding-header "Next Tasks")))))
 
-    ("W" "Work Tasks" tags-todo "+work-email")
+          ("W" "Work Tasks" tags-todo "+work-email")
 
-    ;; Low-effort next actions
-    ("e" tags-todo "+TODO=\"NEXT\"+Effort<15&+Effort>0"
-     ((org-agenda-overriding-header "Low Effort Tasks")
-      (org-agenda-max-todos 20)
-      (org-agenda-files org-agenda-files)))
+          ;; Low-effort next actions
+          ("e" tags-todo "+TODO=\"NEXT\"+Effort<15&+Effort>0"
+           ((org-agenda-overriding-header "Low Effort Tasks")
+            (org-agenda-max-todos 20)
+            (org-agenda-files org-agenda-files)))
 
-    ("w" "Workflow Status"
-     ((todo "WAIT"
-            ((org-agenda-overriding-header "Waiting on External")
-             (org-agenda-files org-agenda-files)))
-      (todo "REVIEW"
-            ((org-agenda-overriding-header "In Review")
-             (org-agenda-files org-agenda-files)))
-      (todo "PLAN"
-            ((org-agenda-overriding-header "In Planning")
-             (org-agenda-todo-list-sublevels nil)
-             (org-agenda-files org-agenda-files)))
-      (todo "BACKLOG"
-            ((org-agenda-overriding-header "Project Backlog")
-             (org-agenda-todo-list-sublevels nil)
-             (org-agenda-files org-agenda-files)))
-      (todo "READY"
-            ((org-agenda-overriding-header "Ready for Work")
-             (org-agenda-files org-agenda-files)))
-      (todo "ACTIVE"
-            ((org-agenda-overriding-header "Active Projects")
-             (org-agenda-files org-agenda-files)))
-      (todo "COMPLETED"
-            ((org-agenda-overriding-header "Completed Projects")
-             (org-agenda-files org-agenda-files)))
-      (todo "CANC"
-            ((org-agenda-overriding-header "Cancelled Projects")
-             (org-agenda-files org-agenda-files)))))))
+          ("w" "Workflow Status"
+           ((todo "WAIT"
+                  ((org-agenda-overriding-header "Waiting on External")
+                   (org-agenda-files org-agenda-files)))
+            (todo "REVIEW"
+                  ((org-agenda-overriding-header "In Review")
+                   (org-agenda-files org-agenda-files)))
+            (todo "PLAN"
+                  ((org-agenda-overriding-header "In Planning")
+                   (org-agenda-todo-list-sublevels nil)
+                   (org-agenda-files org-agenda-files)))
+            (todo "BACKLOG"
+                  ((org-agenda-overriding-header "Project Backlog")
+                   (org-agenda-todo-list-sublevels nil)
+                   (org-agenda-files org-agenda-files)))
+            (todo "READY"
+                  ((org-agenda-overriding-header "Ready for Work")
+                   (org-agenda-files org-agenda-files)))
+            (todo "ACTIVE"
+                  ((org-agenda-overriding-header "Active Projects")
+                   (org-agenda-files org-agenda-files)))
+            (todo "COMPLETED"
+                  ((org-agenda-overriding-header "Completed Projects")
+                   (org-agenda-files org-agenda-files)))
+            (todo "CANC"
+                  ((org-agenda-overriding-header "Cancelled Projects")
+                   (org-agenda-files org-agenda-files)))))))
 
   (setq org-capture-templates
-    `(("t" "Tasks / Projects")
-      ("tt" "Task" entry (file+olp "~/Projects/Code/emacs-from-scratch/OrgFiles/Tasks.org" "Inbox")
+        `(("t" "Tasks / Projects")
+          ("tt" "Task" entry (file+olp "~/Projects/Code/emacs-from-scratch/OrgFiles/Tasks.org" "Inbox")
            "* TODO %?\n  %U\n  %a\n  %i" :empty-lines 1)
 
-      ("j" "Journal Entries")
-      ("jj" "Journal" entry
+          ("j" "Journal Entries")
+          ("jj" "Journal" entry
            (file+olp+datetree "~/Projects/Code/emacs-from-scratch/OrgFiles/Journal.org")
            "\n* %<%I:%M %p> - Journal :journal:\n\n%?\n\n"
            ;; ,(dw/read-file-as-string "~/Notes/Templates/Daily.org")
            :clock-in :clock-resume
            :empty-lines 1)
-      ("jm" "Meeting" entry
+          ("jm" "Meeting" entry
            (file+olp+datetree "~/Projects/Code/emacs-from-scratch/OrgFiles/Journal.org")
            "* %<%I:%M %p> - %a :meetings:\n\n%?\n\n"
            :clock-in :clock-resume
            :empty-lines 1)
 
-      ("w" "Workflows")
-      ("we" "Checking Email" entry (file+olp+datetree "~/Projects/Code/emacs-from-scratch/OrgFiles/Journal.org")
+          ("w" "Workflows")
+          ("we" "Checking Email" entry (file+olp+datetree "~/Projects/Code/emacs-from-scratch/OrgFiles/Journal.org")
            "* Checking Email :email:\n\n%?" :clock-in :clock-resume :empty-lines 1)
 
-      ("m" "Metrics Capture")
-      ("mw" "Weight" table-line (file+headline "~/Projects/Code/emacs-from-scratch/OrgFiles/Metrics.org" "Weight")
-       "| %U | %^{Weight} | %^{Notes} |" :kill-buffer t)))
+          ("m" "Metrics Capture")
+          ("mw" "Weight" table-line (file+headline "~/Projects/Code/emacs-from-scratch/OrgFiles/Metrics.org" "Weight")
+           "| %U | %^{Weight} | %^{Notes} |" :kill-buffer t)))
 
   (define-key global-map (kbd "C-c j")
-    (lambda () (interactive) (org-capture nil "jj")))
+              (lambda () (interactive) (org-capture nil "jj")))
 
   (efs/org-font-setup))
 
@@ -645,15 +681,58 @@
 (add-to-list 'org-structure-template-alist '("sh" . "src sh"))
 (require 'org-tempo)
 
-(use-package org-journal
-  :ensure t
-  :defer t
+(use-package denote
   :config
-  (setq
-   org-journal-dir "~/org/journal"
-   org-journal-file-type 'monthly
-   org-journal-date-format "%a, %Y-%m-%d"
-   org-journal-file-format "%Y-%m.org"))
+  (setq denote-directory "~/org")
+
+  (setq denote-known-keywords '("journal" "projects" "ideas"
+                                "people" "book" "psychology"
+                                "thoughts"))
+  ;; (setq denote-prompts '(title subdirectory))
+
+  ;; Buttonize all denote links in text buffers
+  (add-hook 'find-file-hook #'denote-link-buttonize-buffer)
+  (require 'denote-dired)
+  (add-hook 'dired-mode-hook #'denote-dired-mode))
+
+;; Fontify file names in Dired
+
+(with-eval-after-load 'org-capture
+  (require 'denote-org-capture)
+  (add-to-list 'org-capture-templates
+               '("n" "New note (with Denote)" plain
+                 (file denote-last-path)
+                 #'denote-org-capture
+                 :no-save t
+                 :immediate-finish nil
+                 :kill-buffer t
+                 :jump-to-captured t)))
+
+(with-eval-after-load 'denote
+  (defun my-denote-journal ()
+    "Create an entry tagged 'journal' with the date as its title."
+    (interactive)
+    (denote
+     (format-time-string "%A %e %B %Y")  ; format like Tuesday 14 June 2022
+     '("journal")
+     nil
+     "~/Denotes/Journal")
+
+    (insert "* Thoughts\n\n* Tasks\n\n")))
+
+(with-eval-after-load 'denote
+  (defun my-denote-journal ()
+    "Create an entry tagged 'journal' with the date as its title."
+    (interactive)
+    (denote
+     (format-time-string "%A %e %B %Y")  ; format like Tuesday 14 June 2022
+     '("journal")
+     nil
+     "~/Denotes/Journal")
+
+    (insert "* Thoughts\n\n* Tasks\n\n"))) ; multiple keywords are a list of strings: '("one" "two"))
+
+(use-package evil-org)
 
 ;; Automatically tangle our Emacs.org config file when we save it
 (defun efs/org-babel-tangle-config ()
@@ -700,18 +779,10 @@
 ;; - https://magit.vc/manual/ghub/Getting-Started.html#Getting-Started
 (use-package forge)
 
-;; (use-package magit-delta
-;;   :after (magit)
-;;   :config
-;;   (add-hook 'magit-mode-hook (lambda () (magit-delta-mode +1))))
-
 (use-package git-link
   :config
   (setq git-link-open-in-browser t
         git-link-use-commit t))
-
-(use-package rainbow-delimiters
-  :hook (prog-mode . rainbow-delimiters-mode))
 
 (use-package verb)
 (use-package org
@@ -882,6 +953,284 @@ mismatched parens are changed based on the left one."
    t
    "*jet error buffer*"
    t))
+
+(defun ss/wrap-with-spy ()
+  (interactive)
+  (cider-interactive-eval "(require 'sc.api)")
+  (with-undo-amalgamate
+    (symex-wrap)
+    (insert "sc.api/spy ")
+    (symex-mode-interface)
+    (indent-for-tab-command)))
+
+(defun ss/rescope-last ()
+  (interactive)
+  (let ((ns (cider-current-ns t)))
+    (cider-nrepl-sync-request:eval "(require 'sc.api)" nil ns)
+    (cider-nrepl-sync-request:eval "(defmacro defsc*
+                                []
+                              `(sc.api/defsc ~(sc.api/last-ep-id)))" nil ns)
+    (cider-nrepl-sync-request:eval "(defsc*)" nil ns)))
+
+(defun ss/run-with-args (&optional rescope)
+  (interactive)
+  (with-undo-amalgamate
+    (save-excursion
+      (symex-goto-lowest)
+      (symex-traverse-forward 2)
+      (let ((fn-name (thing-at-point 'sexp t)))
+        (symex-go-forward 1)
+        (let* ((fn-args (thing-at-point 'sexp t))
+               (fn-args-in (read-string (concat fn-name " " fn-args ": "))))
+          (cider-nrepl-sync-request:eval (format "(%s %s)" fn-name fn-args-in)
+                                         nil
+                                         (cider-current-ns t))
+          (when rescope (ss/re-scope-last)))))))
+
+(defun ss/run-with-args-and-rescope ()
+  (interactive)
+  (ss/run-with-args t))
+
+(defun ss/run-and-rescope-dwim* ()
+  (interactive)
+  (save-excursion
+    (with-undo-amalgamate
+      (ss/wrap-with-spy)
+      (symex-evaluate-definition)
+      ;; undo hack, not sure why it doesn't work w/o this.
+      (insert ""))))
+
+(defun ss/run-and-rescope-dwim ()
+  (interactive)
+  (save-excursion
+    (ss/run-and-rescope-dwim*)
+    (evil-undo-pop)))
+
+(defun ss/instrument-spy* ()
+  (interactive)
+  (save-excursion
+    (with-undo-amalgamate
+      (ss/wrap-with-spy)
+      (symex-evaluate-definition)
+      ;; undo hack, not sure why it doesn't work w/o this.
+      (symex-wrap))))
+
+(defun ss/instrument-spy ()
+  (interactive)
+  (let ((in-symex-mode (or (equal evil-state 'emacslike)
+                           (equal evil-state 'normallike))))
+    (save-excursion
+      (ss/instrument-spy*)
+      (evil-undo-pop))
+    (when in-symex-mode
+      (symex-mode-interface))))
+
+(defun signspice-with-mark (f &rest args)
+  (interactive)
+  (evil-set-jump)
+  (setq signspice-last-jump (point))
+  (apply f args))
+
+
+(defun signspice-yank-and-put-to-mark ()
+  (interactive)
+  (symex-yank 1)
+  (goto-char signspice-last-jump)
+  (symex-paste-after 1))
+
+
+(defun signspice-steal-from-ace ()
+  (interactive)
+  (let ((starting-point (point)))
+    (lispy-ace-paren 2)
+    (symex-yank 1)
+    (goto-char starting-point)
+    (symex-paste-after 1)))
+
+
+(defun signspice-eval-mark (char)
+  (interactive (list (read-char "evaluate mark:")))
+  (save-excursion
+    (evil-goto-mark char)
+    (symex-evaluate 1)))
+
+(defun portal.api/open ()
+  (interactive)
+  (cider-nrepl-sync-request:eval
+   "(require 'portal.api) (def p (portal/open {:theme :portal.colors/solarized-light :portal.viewer/default :portal.viewer/tree})) (portal.api/tap)"))
+
+(defun portal-copy ()
+  (interactive)
+  (kill-new (nrepl-dict-get (cider-nrepl-sync-request:eval "@p") "value"))
+  (symex-paste-after 1))
+
+(with-eval-after-load 'cider-mode
+        (defun cider-tap (&rest r)
+          (cons (concat "(let [__value "
+                        (caar r)
+                        "] (tap> (if (instance? clojure.lang.IObj __value)
+                               (with-meta __value {:portal.viewer/default :portal.viewer/tree
+                                                   :theme :portal.colors/solarized-light})
+                               __value))
+                       __value)")
+                (cdar r)))
+
+        (advice-add 'cider-nrepl-request:eval
+                    :filter-args #'cider-tap))
+
+(setq signspice-last-jump nil)
+
+(defun signspice-goto-previous-mark ()
+  (interactive)
+  (when (not signspice-last-jump)
+    (setq signspice-last-jump (point)))
+  (let ((pos (point))
+        (last-pos signspice-last-jump))
+
+    (goto-char last-pos)
+    (setq signspice-last-jump pos)))
+
+
+(defun signspice-pprint-at-point ()
+  (interactive)
+  (unwind-protect
+      (save-excursion
+        (forward-sexp)
+        (cider-pprint-eval-last-sexp))))
+
+(defun signspice-jsx->clj ()
+  (interactive)
+  (call-shell-region (point-min) (point-max) "node ~/projects/jsx-to-clojurescript/jsx-to-clojurescript.js --target om --ns n --kebab-tags" t t))
+
+
+(defun signspice-tsx->jsx ()
+  (interactive)
+  (call-shell-region (point-min) (point-max) ">> /tmp/temp.tsx; npx detype /tmp/temp.tsx /tmp/temp.jsx; cat /tmp/temp.jsx; rm /tmp/temp.tsx" t t))
+
+;; (use-package popper
+;;              :bind (("C-`"   . popper-toggle-latest)
+;;                     ("M-`"   . popper-cycle)
+;;                     ("C-M-`" . popper-toggle-type))
+;;              :init
+;;              (setq popper-reference-buffers
+;;                    '("\\*Messages\\*"
+;;                      "Output\\*$"
+;;                      "\\*Async Shell Command\\*"
+;;                      help-mode
+;;                      compilation-mode
+;;                      cider-repl-mode))
+;;              (popper-mode +1)
+;;              (popper-echo-mode +1))
+
+
+(use-package git-timemachine)
+
+(defun open-portal-api ()
+  (interactive)
+  (cider-interactive-eval "(do (require 'portal.api)
+                               (add-tap #'portal.api/submit)
+                               (def portella (portal.api/open {:portal.viewer/default :portal.viewer/tree}))
+                               (portal.api/tap))"))
+
+(defun open-portal-web ()
+  (interactive)
+  (cider-interactive-eval "(do (require 'portal.web)
+                               (add-tap #'portal.api/submit)
+                               (def portella (portal.api/open {:theme :portal.colors/solarized-light :portal.viewer/default :portal.viewer/tree}))
+                               (portal.api/tap))"))
+
+(defun portal.api/clear ()
+  (interactive)
+  (cider-nrepl-sync-request:eval
+   "(#?(:clj portal.api/clear :cljs portal.web/clear))"))
+
+(defun portal/invoke-portal-command (command-str)
+  (cider-nrepl-sync-request:eval
+   (concat "(#?(:clj portal.api/eval-str :cljs portal.web/eval-str) \"" command-str "\")")))
+
+(defmacro define-portal-command (command-name)
+  (let ((emacs-command-name (intern (format "portal-ui-commands/%s" command-name)))
+        (clojure-invocation (format "(portal.ui.commands/%s portal.ui.state/state)" command-name)))
+    `(defun ,emacs-command-name ()
+       (interactive)
+       (portal/invoke-portal-command ,clojure-invocation))))
+
+(define-portal-command select-root)
+(define-portal-command select-next)
+(define-portal-command select-prev)
+(define-portal-command select-parent)
+(define-portal-command select-child)
+(define-portal-command history-back)
+(define-portal-command toggle-expand)
+(define-portal-command focus-selected)
+(define-portal-command toggle-shell)
+(define-portal-command toggle-shell)
+
+(defun portal-copy ()
+  (interactive)
+  (insert (nrepl-dict-get (cider-nrepl-sync-request:eval "@portella") "value")))
+
+(defun portal-ui-commands/set-viewer (viewer)
+  (interactive)
+  (portal/invoke-portal-command
+   (concat
+    "(require '[portal.ui.state :as s])
+
+    (defn set-viewer! [viewer]
+      (s/dispatch!
+       s/state
+       assoc-in
+       [:selected-viewers
+        (s/get-location
+         (s/get-selected-context @s/state))]
+       viewer))
+
+    (set-viewer! :portal.viewer/" viewer ")")))
+
+(defun portal-ui-commands/set-tree-viewer ()
+  (interactive) (portal-ui-commands/set-viewer "tree"))
+
+(defun portal-ui-commands/set-pprint-viewer ()
+  (interactive) (portal-ui-commands/set-viewer "pprint"))
+
+(defun portal-ui-commands/set-inspector-viewer ()
+  (interactive) (portal-ui-commands/set-viewer "inspector"))
+
+(with-eval-after-load 'clojure-mode
+  (defhydra hydra-portal (clojure-mode-map "C-c C-c")
+    "Portal"
+    ("r" portal-ui-commands/select-root "Select root")
+    ("s" portal-ui-commands/select-next "Select next")
+    ("h" portal-ui-commands/select-prev "Select prev")
+    ("k" portal-ui-commands/select-parent "Select parent")
+    ("j" portal-ui-commands/select-child "Select child")
+    ("n" portal-ui-commands/select-child "Select child")
+    ("C-h" portal-ui-commands/history-back "History back")
+    ("-" portal-ui-commands/focus-selected "Focus selected")
+    ("e" portal-ui-commands/toggle-expand "Toggle expand")
+    ("i" portal-ui-commands/set-inspector-viewer "Set inspector viewer")
+    ("t" portal-ui-commands/set-tree-viewer "Set tree viewer")
+    ("p" portal-ui-commands/set-pprint-viewer "Set pprint viewer")
+    ("S" portal-ui-commands/toggle-shell "Toggle shell")
+    ("c" portal-copy "Copy")
+    (";" portal.api/clear "Clear")
+    ("q" nil "Exit" :exit t)))
+
+(defun portal-select-first ()
+  (interactive)
+  (portal-ui-commands/select-root)
+  (portal-ui-commands/select-next)
+  (hydra-portal/body))
+
+(with-eval-after-load 'cider-mode
+  (defun cider-tap (&rest r)
+    (cons (concat "(let [__value " (caar r) "]"
+                  " (tap> __value)
+                     __value)")
+          (cdar r)))
+
+  (advice-add 'cider-nrepl-request:eval
+              :filter-args #'cider-tap))
 
 (use-package lsp-mode
   :commands lsp

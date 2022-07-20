@@ -18,6 +18,15 @@
  (cider-repl-mode (:switch-to-from-cider-repl corgi/switch-to-previous-buffer))
  (clojure-mode (:switch-to-from-cider-repl ox/cider-switch-to-repl-buffer-same-window-force))
  (js-mode ( :eval/last-sexp js-send-last-sexp
-                            :eval/buffer js-send-buffer
-                            :eval/region js-send-region
-                            :repl/toggle js-comint-start-or-switch-to-repl)))
+            :eval/buffer js-send-buffer
+            :eval/region js-send-region
+            :repl/toggle js-comint-start-or-switch-to-repl))
+
+ (org-mode ( :jump/identifier counsel-imenu
+             :jump/character avy-goto-char
+             :jump/last-change goto-last-change)
+
+           ( :sexp/slurp-forward evil-org->
+             :sexp/barf-forward evil-org-<
+             :sexp/forward org-next-item
+             :sexp/backward org-previous-item)))

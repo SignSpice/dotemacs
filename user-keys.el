@@ -47,6 +47,7 @@
 
   ("SPC" "leader"
    ("a" "End append on forms" evil-cp-insert-at-end-of-form)
+   (";" "symex mode" symex-mode-interface)
    ("0" "Select Treemacs" treemacs-select-window)
    ("=" "Zoom in" default-text-scale-increase)
    ("-" "Zoom out" default-text-scale-decrease)
@@ -107,4 +108,7 @@
    ("RET" "Resume last sess" ivy-resume)
    ("." "Find file" :file/open)
 
-   )))
+   )
+
+  (normal
+   ("RET" symex-mode-interface))))

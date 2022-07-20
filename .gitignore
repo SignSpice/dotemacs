@@ -17,3 +17,5 @@ projectile.cache
 org-persist/
 .git.bak/
 forge-database.sqlite
+/.lsp-session-v1
+/.org-id-locations
