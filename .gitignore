@@ -19,3 +19,4 @@ org-persist/
 forge-database.sqlite
 /.lsp-session-v1
 /.org-id-locations
+history
