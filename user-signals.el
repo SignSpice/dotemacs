@@ -61,11 +61,12 @@
             :eval/region js-send-region
             :repl/toggle js-comint-start-or-switch-to-repl))
 
- (org-mode ( :jump/identifier consult-imenu
-             :jump/character avy-goto-char
-             :jump/last-change goto-last-change)
+ ;; (org-mode ( :jump/identifier consult-imenu
+ ;;             :jump/character avy-goto-char
+ ;;             :jump/last-change consult-imenu)
 
-           ( :sexp/slurp-forward evil-org->
-             :sexp/barf-forward evil-org-<
-             :sexp/forward org-next-item
-             :sexp/backward org-previous-item)))
+ ;;           ( :sexp/slurp-forward evil-org->
+ ;;             :sexp/barf-forward evil-org-<
+ ;;             :sexp/forward org-next-item
+ ;;             :sexp/backward org-previous-item))
+ )
