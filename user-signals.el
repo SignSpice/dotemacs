@@ -13,7 +13,7 @@
 ;; `user-keys.el', and your new binding will do the right thing regardless of
 ;; the language/mode you are in.
 
-((default ( :command/execute consult-M-x
+((default ( :command/execute execute-extended-command
 
             :file/open find-file
             :file/save save-buffer

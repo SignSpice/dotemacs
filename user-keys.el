@@ -42,6 +42,7 @@
    ("c" "Next hunk of git change" git-gutter:next-hunk))
 
   ("<backspace>" "Switch to previous buffer" corgi/switch-to-previous-buffer)
+  ("t" "avy timer" avy-goto-char-timer)
   ("z" "zzzzz"
    ("z" "Fold toggle" evil-toggle-fold))
 

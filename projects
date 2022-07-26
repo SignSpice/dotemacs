@@ -1,3 +1,4 @@
 ;;; -*- lisp-data -*-
-(("~/.emacs.default/")
+(("~/org/")
+ ("~/.emacs.default/")
  ("~/projects/symex.el/"))
