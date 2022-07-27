@@ -69,12 +69,6 @@ Emacs has a built in package manager but it has a lot left to be desired. We're 
 #+RESULTS:
 | corgi-packages | org-elpa | melpa | gnu-elpa-mirror | el-get | emacsmirror-mirror |
 
-** Doom's core-lib (Ya, I'm spoiled)
-#+begin_src emacs-lisp
-(require 'core-lib "/home/pacman/.emacs.default/from-doom/core-lib.el")
-(require 'core-lib "/home/pacman/.emacs.default/from-doom/core-keybinds.el")
-#+end_src
-
 ** Exec path
 
 Unfortunately emacs launched from =.app= launcher does not get the full exec path which our shell has. Let's fix that

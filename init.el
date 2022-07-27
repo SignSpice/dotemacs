@@ -12,6 +12,9 @@
 
 (defvar bootstrap-version) 
 
+
+
+
 (let ((install-url "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el")
       (bootstrap-file (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
       (bootstrap-version 5))
@@ -43,9 +46,6 @@
              :branch "ox/separate-completion-ui"))
 
 (add-to-list #'straight-recipe-repositories 'corgi-packages)
-
-(require 'core-lib "/home/pacman/.emacs.default/from-doom/core-lib.el")
-(require 'core-lib "/home/pacman/.emacs.default/from-doom/core-keybinds.el")
 
 (use-package exec-path-from-shell
   :config
